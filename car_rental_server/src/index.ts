@@ -27,3 +27,5 @@ app.use("/api/v1/bookings", authMiddleware, bookingRoutes);
 app.listen(3000, () => {
   console.log(`Server is running on port, host: http://localhost:3000`);
 });
+
+export default app;
