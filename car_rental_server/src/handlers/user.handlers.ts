@@ -31,7 +31,7 @@ export const signUp = async (
 
 
     if (existingUser.length > 0) {
-      return res.status(ResponseStatus.BAD_REQUEST).json({
+      return res.status(ResponseStatus.USER_ALREADY_EXISTS).json({
         success: false,
         error: "User already exists",
       });
@@ -101,6 +101,13 @@ export const signIn = async (
     // Create JWT token
     const payload = { userId: user[0].id, username: user[0].username };
     const token = jwt.sign(payload, jwtSecret, { expiresIn: "1h" });
+
+    // Set token as a cookie (httpOnly for security)
+    res.cookie("token", token, {
+      httpOnly: true,
+      maxAge: 60 * 60 * 1000, // 1 hour
+      sameSite: "lax",
+    });
 
     return res.status(ResponseStatus.SUCCESS).json({
       success: true,

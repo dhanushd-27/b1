@@ -5,6 +5,7 @@ export const ResponseStatus = {
   UNAUTHORIZED: 401,
   NOT_FOUND: 404,
   INTERNAL_SERVER_ERROR: 500,
+  USER_ALREADY_EXISTS: 409,
 } as const;
 
 export type ResponseStatus = typeof ResponseStatus[keyof typeof ResponseStatus];
