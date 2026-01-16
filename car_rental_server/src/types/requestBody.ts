@@ -14,8 +14,11 @@ export type CreateBookingRequestBody = {
   rentPerDay: number;
 };
 
+import type { BookingStatus } from "./common";
+
 export type UpdateBookingRequestBody = {
   carName?: string;
   days?: number;
   rentPerDay?: number;
+  status?: BookingStatus;
 };

@@ -7,7 +7,7 @@ import type {
   BookingSummaryResponseData,
   CustomError,
 } from "../types/responseBody";
-import type { CreateBookingRequestBody } from "../types/requestBody";
+import type { CreateBookingRequestBody, UpdateBookingRequestBody } from "../types/requestBody";
 import { ResponseStatus, type ApiResponse } from "../types/common";
 import { db } from "../db/connect";
 import { bookingTable, userTable } from "../db/schema";
@@ -159,36 +159,149 @@ export const getBookings = async (
 };
 
 export const updateBooking = async (
-  req: Request<{ bookingId: string }, ApiResponse<BookingUpdatedResponseData> | CustomError>,
+  req: Request<{ bookingId: string }, ApiResponse<BookingUpdatedResponseData> | CustomError, UpdateBookingRequestBody>,
   res: Response<ApiResponse<BookingUpdatedResponseData> | CustomError>
 ) => {
-  // TODO: Implement update booking logic
-  const { bookingId } = req.params;
-  return res.status(ResponseStatus.SUCCESS).json({
-    success: true,
-    data: {
-      message: "Booking updated successfully",
-      booking: {
-        id: parseInt(bookingId),
-        car_name: "Sample Car",
-        days: 1,
-        rent_per_day: 100,
-        status: "booked",
-        totalCost: 100,
+  try {
+    const userId = (req as any).user.userId;
+    const { bookingId } = req.params;
+    const { carName, days, rentPerDay, status } = req.body;
+
+    // Validate at least one field is provided
+    if (!carName && !days && !rentPerDay && !status) {
+      return res.status(ResponseStatus.BAD_REQUEST).json({
+        success: false,
+        error: "Invalid inputs",
+      });
+    }
+
+    // Validate numeric inputs if provided
+    if ((days !== undefined && days <= 0) || (rentPerDay !== undefined && rentPerDay <= 0)) {
+      return res.status(ResponseStatus.BAD_REQUEST).json({
+        success: false,
+        error: "Invalid inputs",
+      });
+    }
+
+    // Validate status if provided
+    const validStatuses = ["booked", "confirmed", "cancelled"];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(ResponseStatus.BAD_REQUEST).json({
+        success: false,
+        error: "Invalid inputs",
+      });
+    }
+
+    // Check if booking exists
+    const existingBooking = await db
+      .select()
+      .from(bookingTable)
+      .where(eq(bookingTable.id, parseInt(bookingId)));
+
+    if (existingBooking.length === 0) {
+      return res.status(ResponseStatus.NOT_FOUND).json({
+        success: false,
+        error: "Booking not found",
+      });
+    }
+
+    // Check if booking belongs to user
+    if (existingBooking[0].user_id !== userId) {
+      return res.status(ResponseStatus.FORBIDDEN).json({
+        success: false,
+        error: "Booking does not belong to user",
+      });
+    }
+
+    // Build update object
+    const updateData: Partial<{
+      car_name: string;
+      days: number;
+      rent_per_day: string;
+      status: "booked" | "confirmed" | "cancelled";
+    }> = {};
+
+    if (carName) updateData.car_name = carName;
+    if (days) updateData.days = days;
+    if (rentPerDay) updateData.rent_per_day = rentPerDay.toString();
+    if (status) updateData.status = status;
+
+    // Update booking
+    const updatedBooking = await db
+      .update(bookingTable)
+      .set(updateData)
+      .where(eq(bookingTable.id, parseInt(bookingId)))
+      .returning();
+
+    const booking = updatedBooking[0];
+    const totalCost = booking.days * parseFloat(booking.rent_per_day);
+
+    return res.status(ResponseStatus.SUCCESS).json({
+      success: true,
+      data: {
+        message: "Booking updated successfully",
+        booking: {
+          id: booking.id,
+          car_name: booking.car_name,
+          days: booking.days,
+          rent_per_day: parseFloat(booking.rent_per_day),
+          status: booking.status,
+          totalCost,
+        },
       },
-    },
-  });
+    });
+  } catch (error) {
+    return res.status(ResponseStatus.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: "Internal server error",
+    });
+  }
 };
 
 export const deleteBooking = async (
   req: Request<{ bookingId: string }, ApiResponse<BookingDeletedResponseData> | CustomError>,
   res: Response<ApiResponse<BookingDeletedResponseData> | CustomError>
 ) => {
-  // TODO: Implement delete booking logic
-  return res.status(ResponseStatus.SUCCESS).json({
-    success: true,
-    data: {
-      message: "Booking deleted successfully",
-    },
-  });
+  try {
+    const userId = (req as any).user.userId;
+    const { bookingId } = req.params;
+
+    // Check if booking exists
+    const existingBooking = await db
+      .select()
+      .from(bookingTable)
+      .where(eq(bookingTable.id, parseInt(bookingId)));
+
+    if (existingBooking.length === 0) {
+      return res.status(ResponseStatus.NOT_FOUND).json({
+        success: false,
+        error: "Booking not found",
+      });
+    }
+
+    // Check if booking belongs to user
+    if (existingBooking[0].user_id !== userId) {
+      return res.status(ResponseStatus.FORBIDDEN).json({
+        success: false,
+        error: "Booking does not belong to user",
+      });
+    }
+
+    // Delete booking
+    await db
+      .delete(bookingTable)
+      .where(eq(bookingTable.id, parseInt(bookingId)));
+
+    return res.status(ResponseStatus.SUCCESS).json({
+      success: true,
+      data: {
+        message: "Booking deleted successfully",
+      },
+    });
+  } catch (error) {
+    return res.status(ResponseStatus.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: "Internal server error",
+    });
+  }
 };
