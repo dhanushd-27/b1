@@ -25,4 +25,4 @@ export type ApiResponse<T> = {
   data: T;
 };
 
-export type BookingStatus = "booked" | "cancelled" | "completed";
+export type BookingStatus = "booked" | "confirmed" | "cancelled";
